@@ -3,7 +3,7 @@ from __future__ import annotations
 
 def _payload(**overrides):
     base = {
-        "action_id": "pol-smoke-001",
+        "action_id": "policy-smoke-001",  # decision_id real, fixtures/smoke/policy-decision/policy-decision-001.json
         "decision": "APPROVE",
         "reason": "Dry-run verificado sin impacto en otros servicios",
         "target_confirmed": True,
@@ -39,3 +39,27 @@ def test_two_approvals_for_same_action_get_different_ids(approver_client):
     r1 = approver_client.post("/api/approvals", json=_payload())
     r2 = approver_client.post("/api/approvals", json=_payload())
     assert r1.json()["approval_id"] != r2.json()["approval_id"]
+
+
+def test_approval_for_unknown_action_id_is_rejected(approver_client):
+    r = approver_client.post("/api/approvals", json=_payload(action_id="no-existe"))
+    assert r.status_code == 404
+
+
+def test_plan_hash_is_derived_from_the_real_policy_decision_not_action_id_or_decision(approver_client):
+    """Regresión del bug real: plan_hash debía depender de
+    tool/target/action del PolicyDecision, no de action_id+decision — dos
+    Approvals para la MISMA acción con distinta decisión (APPROVE/REJECT)
+    deben producir el MISMO plan_hash, porque el plan que se aprueba o
+    rechaza es el mismo."""
+    approve = approver_client.post("/api/approvals", json=_payload(decision="APPROVE")).json()
+    reject = approver_client.post("/api/approvals", json=_payload(decision="REJECT")).json()
+    assert approve["signature_ref"] != reject["signature_ref"]  # distinto approval_id
+    # pero ambos firman el mismo plan_hash implícito: si se revalida con el
+    # mismo current_plan_hash, la única diferencia relevante es la decisión.
+    from api.approvals import compute_plan_hash, compute_signature_ref
+
+    decision = {"tool": "isolate_kubernetes_workload", "action": "execute", "target": "deployment/gseg-simulado"}
+    plan_hash = compute_plan_hash(**decision)
+    assert approve["signature_ref"] == compute_signature_ref(approve["approval_id"], plan_hash)
+    assert reject["signature_ref"] == compute_signature_ref(reject["approval_id"], plan_hash)

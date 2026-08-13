@@ -37,6 +37,7 @@ class InMemoryRepository:
 class Repositories:
     incidents: InMemoryRepository
     recommendations: InMemoryRepository
+    policy_decisions: InMemoryRepository
     approvals: InMemoryRepository
     action_results: InMemoryRepository
     evidence_manifests: InMemoryRepository
@@ -55,6 +56,13 @@ def build_seeded_repositories(contracts_path: pathlib.Path) -> Repositories:
     recommendations = InMemoryRepository(key_field="recommendation_id")
     recommendations.add(_load_fixture(contracts_path, "recommendation", "recommendation-001.json"))
 
+    # decision_id == action_id de la Approval que la referencia: es de aquí
+    # (no de action_id/decision) de donde sale el plan_hash, para que
+    # coincida con la fórmula que argos-cyber-tools/policies/approval espera
+    # (ver api/approvals.py).
+    policy_decisions = InMemoryRepository(key_field="decision_id")
+    policy_decisions.add(_load_fixture(contracts_path, "policy-decision", "policy-decision-001.json"))
+
     action_results = InMemoryRepository(key_field="action_id")
     action_results.add(_load_fixture(contracts_path, "action-result", "action-result-001.json"))
 
@@ -64,6 +72,7 @@ def build_seeded_repositories(contracts_path: pathlib.Path) -> Repositories:
     return Repositories(
         incidents=incidents,
         recommendations=recommendations,
+        policy_decisions=policy_decisions,
         approvals=InMemoryRepository(key_field="approval_id"),  # vacío: las aprobaciones las crea el operador
         action_results=action_results,
         evidence_manifests=evidence_manifests,
@@ -76,6 +85,7 @@ def build_empty_repositories() -> Repositories:
     return Repositories(
         incidents=InMemoryRepository(key_field="incident_id"),
         recommendations=InMemoryRepository(key_field="recommendation_id"),
+        policy_decisions=InMemoryRepository(key_field="decision_id"),
         approvals=InMemoryRepository(key_field="approval_id"),
         action_results=InMemoryRepository(key_field="action_id"),
         evidence_manifests=InMemoryRepository(key_field="artifact_id"),

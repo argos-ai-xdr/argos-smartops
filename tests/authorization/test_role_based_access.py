@@ -22,7 +22,12 @@ def test_soc_approver_role_can_create_approval(app):
     client = TestClient(app)
     r = client.post(
         "/api/approvals",
-        json={"action_id": "pol-1", "decision": "APPROVE", "reason": "motivo suficientemente largo", "target_confirmed": True},
+        json={
+            "action_id": "policy-smoke-001",  # decision_id real, fixtures/smoke/policy-decision/policy-decision-001.json
+            "decision": "APPROVE",
+            "reason": "motivo suficientemente largo",
+            "target_confirmed": True,
+        },
     )
     assert r.status_code == 201
 

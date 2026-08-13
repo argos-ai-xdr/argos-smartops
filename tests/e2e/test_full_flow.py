@@ -43,7 +43,7 @@ def test_operator_reviews_and_approves_via_web_ui(approver_client, audit_log):
 
 
 def test_approve_then_export_handover(approver_client):
-    action_id = "pol-smoke-001"
+    action_id = "policy-smoke-001"  # decision_id real, fixtures/smoke/policy-decision/policy-decision-001.json
     approval = approver_client.post(
         "/api/approvals",
         json={

@@ -7,6 +7,7 @@ def test_seeded_repositories_load_real_fixtures(contracts_path):
     repos = build_seeded_repositories(contracts_path)
     assert repos.incidents.list_all()
     assert repos.recommendations.list_all()
+    assert repos.policy_decisions.list_all()
     assert repos.action_results.list_all()
     assert repos.evidence_manifests.list_all()
     assert repos.approvals.list_all() == []  # nadie ha aprobado nada todavía

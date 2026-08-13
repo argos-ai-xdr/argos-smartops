@@ -3,11 +3,12 @@
 directamente (no vía HTTP), así que la regla de negocio vive en un solo
 sitio; esta capa solo traduce HTML↔objetos.
 
-Simplificación conocida: el formulario usa `recommendation_id` como
-`action_id` de la Approval, porque en este bootstrap no hay todavía un
-cliente hacia argos-cyber-tools que devuelva el `PolicyDecision.decision_id`
-real asociado (ARG-022). Documentado aquí para que no se confunda con una
-decisión de diseño definitiva.
+`action_id` del formulario es el `decision_id` del PolicyDecision real
+asociado a la recomendación (mismo `run_id`, ver api/repository.py) — no
+`recommendation_id`. Sin argos-cyber-tools desplegado todavía (ARG-022) no
+hay un cliente HTTP que lo resuelva remotamente, así que se busca en el
+repositorio local sembrado con las mismas fixtures/smoke/; el mecanismo de
+lookup (por run_id compartido) es el mismo que usará ese cliente real.
 """
 from __future__ import annotations
 
@@ -52,14 +53,23 @@ def approval_form_page(request: Request, incident_id: str, repos: Repositories =
     matches = repos.recommendations.list_where(incident_id=incident_id)
     if not matches:
         raise HTTPException(status_code=404, detail=f"sin recomendación para el incidente {incident_id!r}")
-    recommendation = to_recommendation_view(matches[0])
+    raw_recommendation = matches[0]
+
+    decisions = repos.policy_decisions.list_where(run_id=raw_recommendation["run_id"])
+    if not decisions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"sin PolicyDecision para run_id={raw_recommendation['run_id']!r} — ver docstring del módulo",
+        )
+
+    recommendation = to_recommendation_view(raw_recommendation)
     return templates.TemplateResponse(
         request,
         "approval_form.html",
         {
             "incident_id": incident_id,
             "recommendation": recommendation,
-            "action_id": recommendation["recommendation_id"],  # ver docstring del módulo
+            "action_id": decisions[0]["decision_id"],  # ver docstring del módulo
         },
     )
 

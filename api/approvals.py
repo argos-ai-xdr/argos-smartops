@@ -5,6 +5,17 @@ calculados con la MISMA fórmula que argos-cyber-tools/policies/approval
 espera — para que la Approval que emite SmartOps sea la que ese repositorio
 sabe validar, no una incompatible por casualidad.
 
+`plan_hash` se deriva del PolicyDecision real (tool/target/action/params)
+que `action_id` referencia, no de action_id+decision: una versión anterior
+hasheaba (action_id, decision), que ni siquiera con el mismo action_id real
+coincide con lo que argos-cyber-tools recalcula en el momento de ejecutar
+(ToolCallRequest.tool/target/action) — toda Approval emitida así era
+rechazada siempre con "la acción cambió después de aprobarse", un mensaje
+engañoso ya que nada había cambiado: las dos fórmulas nunca coincidieron.
+Encontrado ejecutando de verdad el código de ambos repos juntos, no
+leyéndolos por separado (cada suite de tests solo comprobaba consistencia
+interna contra su propia fórmula).
+
 `argos-cyber-tools` revalida todo esto de forma independiente antes de
 ejecutar nada (ADR-011): lo de aquí reduce aprobaciones inválidas por error
 humano, no es el control de seguridad final.
@@ -38,8 +49,16 @@ REQUESTER_SYSTEM_ID = "argos-core-recommendation-engine"
 APPROVAL_TTL_MINUTES = 15
 
 
-def compute_plan_hash(*, action_id: str, decision: str) -> str:
-    canonical = json.dumps({"action_id": action_id, "decision": decision}, sort_keys=True, separators=(",", ":"))
+def compute_plan_hash(*, tool: str, target: str, action: str, params: dict | None = None) -> str:
+    """Idéntica a argos-cyber-tools/policies/approval.compute_plan_hash — ver
+    el docstring del módulo. Duplicada a propósito (mismo patrón que el
+    resto de argos-ai-xdr, p. ej. la validación de schemas): cada repo debe
+    poder calcularla sin depender de importar código del otro."""
+    canonical = json.dumps(
+        {"tool": tool, "target": target, "action": action, "params": params or {}},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -61,13 +80,26 @@ def create_approval(
     if operator.subject == REQUESTER_SYSTEM_ID:
         raise HTTPException(status_code=403, detail="segregación de funciones: approver_id == requester_id")
 
+    policy_decision = repos.policy_decisions.get(payload.action_id)
+    if policy_decision is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no existe un PolicyDecision con decision_id={payload.action_id!r} — "
+            "no se puede calcular un plan_hash verificable para esta Approval",
+        )
+
     # uuid4, no un hash de action_id+timestamp en segundos: dos aprobaciones
     # de la MISMA acción dentro del mismo segundo colisionaban (encontrado
     # por un test que crea dos aprobaciones seguidas), y el repositorio en
     # memoria (keyed por approval_id) habría descartado la primera en
     # silencio.
     approval_id = f"appr-{uuid.uuid4().hex[:30]}"
-    plan_hash = compute_plan_hash(action_id=payload.action_id, decision=payload.decision)
+    plan_hash = compute_plan_hash(
+        tool=policy_decision["tool"],
+        target=policy_decision["target"],
+        action=policy_decision["action"],
+        params=policy_decision.get("params"),
+    )
     issued_at = datetime.datetime.now(datetime.UTC)
     expires_at = issued_at + datetime.timedelta(minutes=APPROVAL_TTL_MINUTES)
 
