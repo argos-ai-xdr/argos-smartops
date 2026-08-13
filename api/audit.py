@@ -19,6 +19,14 @@ class AuditEntry:
     timestamp: str
 
 
+def get_audit_log() -> AuditLog:  # pragma: no cover - sobreescrito con dependency_overrides
+    """Punto de extensión de inyección de dependencias — vive aquí (no en
+    web/routes.py) para que api/ pueda depender de él sin invertir el
+    sentido habitual de las importaciones (web/ importa de api/, no al
+    revés). Ver api/app.py."""
+    raise RuntimeError("get_audit_log debe sobreescribirse al montar la app (ver api/app.py)")
+
+
 class AuditLog:
     def __init__(self) -> None:
         self._entries: list[AuditEntry] = []

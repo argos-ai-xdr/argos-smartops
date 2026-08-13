@@ -3,6 +3,14 @@ historial de exportaciones. No reconstruye la redacción por TLP — eso es
 `argos-core/services/soc_adapter`; aquí se gestiona SOLO el estado del
 envío (pending → sent → acked, o failed → retry).
 
+Cada transición exige un operador autenticado y queda en AuditLog — un
+handover expone contenido con clasificación TLP a un tercero (el SOC), así
+que no puede quedar sin atribuir a nadie, igual que una Approval. Encontrado
+ejecutando la app sin ningún token: /export devolvía 201 para cualquiera, y
+api/audit.py ya documentaba (incorrectamente) que "cada export de handover
+queda registrado" sin que ningún endpoint de este módulo llamara a
+AuditLog.record.
+
 Sin endpoint SOC real todavía (ARG-022): el envío se simula (siempre
 "sent" salvo que el propio caller pida simular un fallo, útil para probar
 el ciclo failed→retry sin depender de un servicio externo que no existe).
@@ -15,6 +23,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from api.audit import AuditLog, get_audit_log
+from api.auth import Operator, get_current_operator
 from api.incidents import get_repositories
 from api.repository import Repositories
 
@@ -33,7 +43,13 @@ def _now_iso() -> str:
 
 
 @router.post("/{case_id}/export", status_code=201)
-def trigger_export(case_id: str, payload: ExportRequest, repos: Repositories = Depends(get_repositories)) -> dict:
+def trigger_export(
+    case_id: str,
+    payload: ExportRequest,
+    operator: Operator = Depends(get_current_operator),
+    repos: Repositories = Depends(get_repositories),
+    audit: AuditLog = Depends(get_audit_log),
+) -> dict:
     if payload.tlp not in VALID_TLP:
         raise HTTPException(status_code=400, detail=f"tlp inválido: {payload.tlp!r}, debe ser uno de {sorted(VALID_TLP)}")
 
@@ -55,11 +71,21 @@ def trigger_export(case_id: str, payload: ExportRequest, repos: Repositories = D
         "acked_at": None,
     }
     repos.handovers.add(record)
+    audit.record(
+        actor=operator.subject,
+        action="handover.export.create",
+        detail={"export_id": export_id, "case_id": case_id, "tlp": payload.tlp, "status": record["status"]},
+    )
     return record
 
 
 @router.post("/exports/{export_id}/ack")
-def acknowledge_export(export_id: str, repos: Repositories = Depends(get_repositories)) -> dict:
+def acknowledge_export(
+    export_id: str,
+    operator: Operator = Depends(get_current_operator),
+    repos: Repositories = Depends(get_repositories),
+    audit: AuditLog = Depends(get_audit_log),
+) -> dict:
     record = repos.handovers.get(export_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"export {export_id!r} no encontrado")
@@ -67,11 +93,21 @@ def acknowledge_export(export_id: str, repos: Repositories = Depends(get_reposit
         raise HTTPException(status_code=409, detail=f"no se puede confirmar un export en estado '{record['status']}'")
     record["status"] = "acked"
     record["acked_at"] = _now_iso()
+    audit.record(
+        actor=operator.subject,
+        action="handover.export.ack",
+        detail={"export_id": export_id, "case_id": record["case_id"]},
+    )
     return record
 
 
 @router.post("/exports/{export_id}/retry")
-def retry_export(export_id: str, repos: Repositories = Depends(get_repositories)) -> dict:
+def retry_export(
+    export_id: str,
+    operator: Operator = Depends(get_current_operator),
+    repos: Repositories = Depends(get_repositories),
+    audit: AuditLog = Depends(get_audit_log),
+) -> dict:
     record = repos.handovers.get(export_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"export {export_id!r} no encontrado")
@@ -80,6 +116,11 @@ def retry_export(export_id: str, repos: Repositories = Depends(get_repositories)
     record["attempts"] += 1
     record["status"] = "sent"
     record["last_attempt_at"] = _now_iso()
+    audit.record(
+        actor=operator.subject,
+        action="handover.export.retry",
+        detail={"export_id": export_id, "case_id": record["case_id"], "attempts": record["attempts"]},
+    )
     return record
 
 

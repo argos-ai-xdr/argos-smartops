@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 from generated_contracts import ContractsRepoNotFound, resolve_contracts_path
 
 from api.app import create_app
+from api.audit import AuditLog
 from api.auth import Operator, get_current_operator
 from api.repository import build_seeded_repositories
-from web.audit import AuditLog
 
 
 @pytest.fixture(scope="session")

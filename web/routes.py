@@ -20,18 +20,14 @@ from fastapi.templating import Jinja2Templates
 from generated_contracts import ApprovalCreate
 
 from api.approvals import create_approval
+from api.audit import AuditLog, get_audit_log
 from api.auth import Operator, get_current_operator
 from api.incidents import get_repositories, to_incident_detail, to_queue_item
 from api.recommendations import to_recommendation_view
 from api.repository import Repositories
-from web.audit import AuditLog
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory=str(pathlib.Path(__file__).parent / "templates"))
-
-
-def get_audit_log() -> AuditLog:  # pragma: no cover - sobreescrito con dependency_overrides
-    raise RuntimeError("get_audit_log debe sobreescribirse al montar la app (ver api/app.py)")
 
 
 @router.get("/incidents", response_class=HTMLResponse)

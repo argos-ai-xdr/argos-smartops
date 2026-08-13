@@ -11,10 +11,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from api import actions, approvals, evidence, handover, incidents, recommendations
+from api.audit import AuditLog, get_audit_log
 from api.incidents import get_repositories
 from api.repository import Repositories, build_empty_repositories
 from web import routes as web_routes
-from web.audit import AuditLog
 
 STATIC_DIR = pathlib.Path(__file__).resolve().parent.parent / "packages" / "ui_components" / "static"
 
@@ -30,7 +30,7 @@ def create_app(
     app.state.repositories = repos
     app.state.audit_log = audit
     app.dependency_overrides[get_repositories] = lambda: repos
-    app.dependency_overrides[web_routes.get_audit_log] = lambda: audit
+    app.dependency_overrides[get_audit_log] = lambda: audit
 
     # Prefijo /api obligatorio: sin él, api.incidents y web.routes registran
     # ambos GET /incidents/{incident_id} (uno JSON, otro HTML) en la misma

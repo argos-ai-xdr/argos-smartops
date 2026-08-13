@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from web.audit import AuditLog
+from api.audit import AuditLog
 
 
 def test_record_appends_and_returns_entry():

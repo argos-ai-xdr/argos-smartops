@@ -61,3 +61,24 @@ def test_two_exports_for_same_case_get_different_ids_even_under_a_stale_count(ap
     app.state.repositories.handovers._items.clear()  # simula la carrera: la 2ª ve el mismo estado que la 1ª
     r2 = approver_client.post("/api/handover/case-collision/export", json={"tlp": "AMBER"})
     assert r1.json()["export_id"] != r2.json()["export_id"]
+
+
+def test_export_without_authentication_does_not_silently_succeed(unauthenticated_client):
+    """Regresión: /export no exigía ningún operador — cualquiera, sin
+    token, podía disparar un handover con contenido clasificado TLP hacia
+    el SOC. Mismo principio ya probado para /api/approvals."""
+    r = unauthenticated_client.post("/api/handover/case-x/export", json={"tlp": "AMBER"})
+    assert r.status_code >= 400
+
+
+def test_export_ack_and_retry_are_recorded_in_the_audit_log(approver_client, audit_log):
+    """Regresión: ningún endpoint de handover llamaba a AuditLog.record,
+    aunque api/audit.py ya documentaba (antes en web/audit.py) que 'cada
+    export de handover queda registrado'."""
+    r1 = approver_client.post("/api/handover/case-audit/export", json={"tlp": "RED", "simulate_failure": True})
+    export_id = r1.json()["export_id"]
+    approver_client.post(f"/api/handover/exports/{export_id}/retry")
+
+    actions = [e.action for e in audit_log.all()]
+    assert actions == ["handover.export.create", "handover.export.retry"]
+    assert all(e.actor == "soc-1" for e in audit_log.all())
