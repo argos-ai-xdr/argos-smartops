@@ -10,6 +10,7 @@ el ciclo failed→retry sin depender de un servicio externo que no existe).
 from __future__ import annotations
 
 import datetime
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -36,7 +37,12 @@ def trigger_export(case_id: str, payload: ExportRequest, repos: Repositories = D
     if payload.tlp not in VALID_TLP:
         raise HTTPException(status_code=400, detail=f"tlp inválido: {payload.tlp!r}, debe ser uno de {sorted(VALID_TLP)}")
 
-    export_id = f"exp-{case_id}-{len(repos.handovers.list_where(case_id=case_id)) + 1}"
+    # uuid4, no un contador basado en len(list_where(...)): dos exports del
+    # MISMO case_id en la misma ventana de carrera calculan el mismo count y
+    # producen el mismo export_id, y el repositorio en memoria (keyed por
+    # export_id) descarta uno en silencio — mismo bug ya encontrado y
+    # corregido para approval_id en api/approvals.py.
+    export_id = f"exp-{case_id}-{uuid.uuid4().hex[:12]}"
     now = _now_iso()
     record = {
         "export_id": export_id,

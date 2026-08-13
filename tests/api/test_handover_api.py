@@ -45,3 +45,19 @@ def test_retry_of_already_sent_export_is_rejected(approver_client):
 def test_unknown_export_operations_are_404(approver_client):
     assert approver_client.post("/api/handover/exports/nope/ack").status_code == 404
     assert approver_client.post("/api/handover/exports/nope/retry").status_code == 404
+
+
+def test_two_exports_for_same_case_get_different_ids_even_under_a_stale_count(approver_client, app):
+    """Regresión: export_id se generaba como
+    f"exp-{case_id}-{len(list_where(...)) + 1}". Dos llamadas SECUENCIALES ya
+    daban ids distintos (el count avanza), así que eso no demuestra nada —
+    el bug real es bajo carrera: dos requests que leen el count ANTES de que
+    ninguna de las dos haya escrito ven el mismo len(...) y calculan el
+    mismo export_id, y el repositorio en memoria (keyed por export_id)
+    descarta una en silencio. Se simula esa carrera vaciando el repositorio
+    entre ambas llamadas, para que la segunda vea el mismo estado (len=0)
+    que vio la primera."""
+    r1 = approver_client.post("/api/handover/case-collision/export", json={"tlp": "AMBER"})
+    app.state.repositories.handovers._items.clear()  # simula la carrera: la 2ª ve el mismo estado que la 1ª
+    r2 = approver_client.post("/api/handover/case-collision/export", json={"tlp": "AMBER"})
+    assert r1.json()["export_id"] != r2.json()["export_id"]
