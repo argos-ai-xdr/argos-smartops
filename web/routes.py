@@ -1,0 +1,90 @@
+"""UI server-rendered (Jinja2). Reutiliza la MISMA lógica de negocio que
+`api/` — `submit_approval` llama a `api.approvals.create_approval`
+directamente (no vía HTTP), así que la regla de negocio vive en un solo
+sitio; esta capa solo traduce HTML↔objetos.
+
+Simplificación conocida: el formulario usa `recommendation_id` como
+`action_id` de la Approval, porque en este bootstrap no hay todavía un
+cliente hacia argos-cyber-tools que devuelva el `PolicyDecision.decision_id`
+real asociado (ARG-022). Documentado aquí para que no se confunda con una
+decisión de diseño definitiva.
+"""
+from __future__ import annotations
+
+import pathlib
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from generated_contracts import ApprovalCreate
+
+from api.approvals import create_approval
+from api.auth import Operator, get_current_operator
+from api.incidents import get_repositories, to_incident_detail, to_queue_item
+from api.recommendations import to_recommendation_view
+from api.repository import Repositories
+from web.audit import AuditLog
+
+router = APIRouter(tags=["web"])
+templates = Jinja2Templates(directory=str(pathlib.Path(__file__).parent / "templates"))
+
+
+def get_audit_log() -> AuditLog:  # pragma: no cover - sobreescrito con dependency_overrides
+    raise RuntimeError("get_audit_log debe sobreescribirse al montar la app (ver api/app.py)")
+
+
+@router.get("/incidents", response_class=HTMLResponse)
+def incidents_queue_page(request: Request, repos: Repositories = Depends(get_repositories)) -> HTMLResponse:
+    incidents = [to_queue_item(i) for i in repos.incidents.list_all()]
+    return templates.TemplateResponse(request, "incidents_queue.html", {"incidents": incidents})
+
+
+@router.get("/incidents/{incident_id}", response_class=HTMLResponse)
+def incident_detail_page(request: Request, incident_id: str, repos: Repositories = Depends(get_repositories)) -> HTMLResponse:
+    incident = repos.incidents.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail=f"incidente {incident_id!r} no encontrado")
+    return templates.TemplateResponse(request, "incident_detail.html", {"incident": to_incident_detail(incident)})
+
+
+@router.get("/incidents/{incident_id}/approve", response_class=HTMLResponse)
+def approval_form_page(request: Request, incident_id: str, repos: Repositories = Depends(get_repositories)) -> HTMLResponse:
+    matches = repos.recommendations.list_where(incident_id=incident_id)
+    if not matches:
+        raise HTTPException(status_code=404, detail=f"sin recomendación para el incidente {incident_id!r}")
+    recommendation = to_recommendation_view(matches[0])
+    return templates.TemplateResponse(
+        request,
+        "approval_form.html",
+        {
+            "incident_id": incident_id,
+            "recommendation": recommendation,
+            "action_id": recommendation["recommendation_id"],  # ver docstring del módulo
+        },
+    )
+
+
+@router.post("/incidents/{incident_id}/approve")
+def submit_approval(
+    incident_id: str,
+    decision: str = Form(...),
+    reason: str = Form(...),
+    target_confirmed: str = Form(...),
+    action_id: str = Form(...),
+    operator: Operator = Depends(get_current_operator),
+    repos: Repositories = Depends(get_repositories),
+    audit: AuditLog = Depends(get_audit_log),
+) -> RedirectResponse:
+    payload = ApprovalCreate(
+        action_id=action_id,
+        decision=decision,
+        reason=reason,
+        target_confirmed=(target_confirmed == "true"),
+    )
+    approval = create_approval(payload, operator=operator, repos=repos)
+    audit.record(
+        actor=operator.subject,
+        action="approval.create",
+        detail={"approval_id": approval["approval_id"], "decision": decision, "incident_id": incident_id},
+    )
+    return RedirectResponse(f"/incidents/{incident_id}", status_code=303)

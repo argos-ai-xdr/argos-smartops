@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Cola de incidentes — argos-smartops{% endblock %}
+{% block content %}
+  <h1>Cola de incidentes</h1>
+  {% if incidents %}
+  <table>
+    <caption>Incidentes abiertos, ordenados por severidad</caption>
+    <thead>
+      <tr>
+        <th scope="col">ID</th>
+        <th scope="col">Severidad</th>
+        <th scope="col">Activos afectados</th>
+        <th scope="col">Estado</th>
+        <th scope="col">Evidencia</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for incident in incidents %}
+      <tr>
+        <td><a href="/incidents/{{ incident.incident_id }}">{{ incident.incident_id }}</a></td>
+        <td>{{ incident.severity }}</td>
+        <td>{{ incident.affected_assets | join(", ") }}</td>
+        <td>{{ incident.status }}</td>
+        <td>{{ "Sí" if incident.has_evidence else "No" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No hay incidentes en la cola.</p>
+  {% endif %}
+{% endblock %}

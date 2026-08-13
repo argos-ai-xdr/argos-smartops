@@ -1,0 +1,16 @@
+# TODO (ARG-022): fijar image.repository/digest reales cuando exista el
+# pipeline de build. Sin digest fijado, este chart no se despliega (ADR-013).
+image:
+  repository: "" # TODO: registry/argos/smartops
+  digest: ""      # TODO: sha256:...
+replicas: 1
+namespace: argos-smartops
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+oidc:
+  issuerUrl: "" # TODO (ARG-022): Keycloak realm argos-ai-xdr, ver argos-platform/platform/keycloak/

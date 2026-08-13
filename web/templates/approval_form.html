@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Aprobación — {{ recommendation.recommendation_id }}{% endblock %}
+{% block content %}
+  <h1>Revisar recomendación</h1>
+
+  <section aria-labelledby="reco-heading">
+    <h2 id="reco-heading">Recomendación {{ recommendation.recommendation_id }}</h2>
+    <p>Impacto: {{ recommendation.impact }}</p>
+    <p>Incertidumbre: {{ recommendation.uncertainty }}</p>
+    <p>Plan de rollback: {{ recommendation.rollback_plan }}</p>
+    <h3>Alternativas</h3>
+    <ul>
+      {% for alt in recommendation.alternatives %}
+      <li>{{ alt.action }} — {{ alt.description }}</li>
+      {% endfor %}
+    </ul>
+    <p>Acción seleccionada: <strong>{{ recommendation.selected_action }}</strong></p>
+  </section>
+
+  <form method="post" action="/incidents/{{ incident_id }}/approve">
+    <fieldset>
+      <legend>Decisión</legend>
+
+      <p>
+        <label for="decision-approve">
+          <input type="radio" id="decision-approve" name="decision" value="APPROVE" required />
+          Aprobar
+        </label>
+        <label for="decision-reject">
+          <input type="radio" id="decision-reject" name="decision" value="REJECT" required />
+          Rechazar
+        </label>
+      </p>
+
+      <p>
+        <label for="reason">Motivo (obligatorio, mínimo 10 caracteres)</label><br />
+        <textarea id="reason" name="reason" required minlength="10"></textarea>
+      </p>
+
+      <p>
+        <label for="target-confirmed">
+          <input type="checkbox" id="target-confirmed" name="target_confirmed" value="true" required />
+          Confirmo que he revisado el target de la acción (<code>{{ recommendation.selected_action }}</code>) antes de aprobar
+        </label>
+      </p>
+
+      <input type="hidden" name="action_id" value="{{ action_id }}" />
+
+      <button type="submit">Enviar decisión</button>
+    </fieldset>
+  </form>
+{% endblock %}

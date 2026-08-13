@@ -1,0 +1,52 @@
+[project]
+name = "argos-smartops"
+version = "0.1.0-dev"
+description = "API y UI de incidentes, aprobación HITL y SOC handover de argos-ai-xdr"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "jinja2>=3.1",
+  "pydantic>=2.5",
+  "python-multipart>=0.0.9",
+  "pyyaml>=6.0",
+  "jsonschema>=4.18",
+  "referencing>=0.30",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "httpx>=0.27",
+  "ruff>=0.5",
+  "mypy>=1.10",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# api/ y web/ viven en la raíz del repo; generated_contracts/ y
+# ui_components/ viven bajo packages/ (mismo espíritu que argos-core: cada
+# subcarpeta con __init__.py se importa como paquete de nivel superior).
+[tool.setuptools.packages.find]
+where = [".", "packages"]
+include = ["api*", "web*", "generated_contracts*", "ui_components*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# B008 (llamada a función en default de argumento) es el patrón de
+# inyección de dependencias de FastAPI (Depends(...)) — recomendación
+# oficial de FastAPI ignorar esta regla con ruff, no una excepción ad hoc.
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

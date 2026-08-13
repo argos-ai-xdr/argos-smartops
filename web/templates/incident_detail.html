@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ incident.incident_id }} — argos-smartops{% endblock %}
+{% block content %}
+  <h1>{{ incident.incident_id }}</h1>
+  <p>Severidad: <strong>{{ incident.severity }}</strong></p>
+
+  <section aria-labelledby="facts-heading">
+    <h2 id="facts-heading">Hechos</h2>
+    <p>Observado directamente — no inferido.</p>
+    <h3>Eventos miembro</h3>
+    <ul>
+      {% for event_id in incident.facts.member_event_ids %}
+      <li>{{ event_id }}</li>
+      {% endfor %}
+    </ul>
+    <h3>Cronología</h3>
+    <ol>
+      {% for entry in incident.facts.timeline %}
+      <li>{{ entry.timestamp }} — {{ entry.description }}</li>
+      {% endfor %}
+    </ol>
+    <h3>Evidencia</h3>
+    <ul>
+      {% for ref in incident.facts.evidence_refs %}
+      <li>{{ ref }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section aria-labelledby="inferences-heading">
+    <h2 id="inferences-heading">Inferencias</h2>
+    <p>Derivado por el sistema — sujeto a revisión humana, no es un hecho confirmado.</p>
+    <p>Confianza: {{ incident.inferences.confidence }}</p>
+    <h3>Técnicas ATT&amp;CK propuestas</h3>
+    <ul>
+      {% for technique in incident.inferences.attack_techniques %}
+      <li>{{ technique }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <nav aria-label="Acciones del incidente">
+    <a href="/incidents/{{ incident.incident_id }}/approve">Revisar recomendación y aprobar/rechazar</a>
+  </nav>
+{% endblock %}

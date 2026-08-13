@@ -1,0 +1,17 @@
+name: argos-smartops
+domain: operations
+criticality: high
+owner: smartops
+backup_owner: soc-approver
+classification: internal
+lifecycle: active
+artifacts:
+  - container-images
+  - python-packages
+  - openapi-spec
+dependencies:
+  - argos-contracts-scenarios
+  - argos-core
+  - argos-cyber-tools
+consumed_by: []
+proposal_source: ARGOS_Propuesta_Tecnica_Maestro_Vivo_v0.5.docx
