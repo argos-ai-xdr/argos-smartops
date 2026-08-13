@@ -97,7 +97,7 @@ class RecommendationOut(BaseModel):
 class ApprovalCreate(BaseModel):
     """Lo que el operador envía desde la UI. approver_id NO viene en el
     body: lo asigna el servidor a partir de la sesión autenticada
-    (web/auth/), para que un cliente no pueda autoasignarse como
+    (api/auth.py), para que un cliente no pueda autoasignarse como
     aprobador de su propia solicitud."""
 
     action_id: str
