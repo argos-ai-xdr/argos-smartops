@@ -12,6 +12,10 @@ from api.repository import Repositories
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
+# Mismo orden que argos-core/services/correlator._SEVERITY_ORDER (duplicado
+# a propósito, mismo patrón que el resto de argos-ai-xdr).
+_SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
 
 def to_queue_item(incident: dict) -> dict:
     return {
@@ -47,7 +51,17 @@ def get_repositories() -> Repositories:  # pragma: no cover - sobreescrito con d
 
 @router.get("")
 def list_incidents(repos: Repositories = Depends(get_repositories)) -> list[dict]:
-    return [to_queue_item(i) for i in repos.incidents.list_all()]
+    # web/templates/incidents_queue.html anuncia "ordenados por severidad" en
+    # su <caption> — list_all() devuelve orden de inserción, no severidad;
+    # sin esto un analista vería incidentes low/medium por delante de un
+    # critical solo por haberse cargado antes (bug real: la UI prometía un
+    # orden que el endpoint nunca aplicaba).
+    incidents = sorted(
+        repos.incidents.list_all(),
+        key=lambda i: _SEVERITY_ORDER.get(i.get("severity", "low"), 0),
+        reverse=True,
+    )
+    return [to_queue_item(i) for i in incidents]
 
 
 @router.get("/{incident_id}")
