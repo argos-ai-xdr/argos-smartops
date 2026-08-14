@@ -66,6 +66,7 @@ def approval_form_page(request: Request, incident_id: str, repos: Repositories =
             "incident_id": incident_id,
             "recommendation": recommendation,
             "action_id": decisions[0]["decision_id"],  # ver docstring del módulo
+            "target": decisions[0]["target"],  # el recurso real, no recommendation.selected_action (ver approval_form.html)
         },
     )
 

@@ -19,6 +19,16 @@ def test_operator_reviews_and_approves_via_web_ui(approver_client, audit_log):
     assert form.status_code == 200
     action_id = re.search(r'name="action_id" value="([^"]+)"', form.text).group(1)
 
+    # Regresión: el checkbox de confirmación decía "he revisado el target
+    # de la acción" pero mostraba recommendation.selected_action (el
+    # nombre de la herramienta, "isolate_kubernetes_workload") en vez del
+    # target real del PolicyDecision ("deployment/gseg-simulado") — un
+    # operador confirmaba haber revisado el target sin que la UI se lo
+    # mostrara nunca.
+    assert "deployment/gseg-simulado" in form.text
+    checkbox_label = re.search(r'for="target-confirmed">(.*?)</label>', form.text, re.DOTALL).group(1)
+    assert "isolate_kubernetes_workload" not in checkbox_label
+
     submit = approver_client.post(
         "/incidents/incident-smoke-001/approve",
         data={
