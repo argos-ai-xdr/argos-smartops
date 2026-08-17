@@ -39,4 +39,4 @@ FastAPI + Jinja2 (server-rendered), **no React/TypeScript**. Es una decisión ex
 * La auditoría es completa.
 * El handover valida contra contrato.
 
-Ver `docs/development.md`.
+Ver `docs/development.md`. Paquete operador/SOC (ARG-028): `docs/operator-package.md`.
