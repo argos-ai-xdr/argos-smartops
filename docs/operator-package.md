@@ -135,7 +135,16 @@ real, no solo documental:
 
 * **Vista operativa mínima**: `api/incidents.py`, `api/approvals.py`
   (listado/consulta) — probado en `tests/api/test_incidents_api.py`,
-  `tests/api/test_approvals_api.py`.
+  `tests/api/test_approvals_api.py`. Incluye estado real de incidente
+  (`open`/`investigating`/`closed`, `POST /incidents/{id}/status` con
+  transiciones válidas y auditoría) — antes de esta sesión `status`
+  estaba fijado a `"open"` sin ninguna transición real: un incidente ya
+  cerrado seguía apareciendo como abierto en la cola indefinidamente
+  (`api/incidents.py`, historial de `to_queue_item`). No es parte del
+  contrato `Incident` v1 (ese schema no tiene campo `status`, `timeline`
+  es inmutable) — vive en un repositorio separado
+  (`repos.incident_status`), mismo patrón que `case_closures` en
+  `api/handover.py`.
 * **Evidence links**: cada `Approval`/`ActionResult` referenciado por
   `run_id`/`action_id` es trazable hasta su `EvidenceManifest` vía
   `argos-validation/harness/evidence/manifest.py` y el panel operativo

@@ -22,7 +22,12 @@ from generated_contracts import ApprovalCreate
 from api.approvals import create_approval
 from api.audit import AuditLog, get_audit_log
 from api.auth import Operator, get_current_operator
-from api.incidents import get_repositories, to_incident_detail, to_queue_item
+from api.incidents import (
+    current_incident_status,
+    get_repositories,
+    to_incident_detail,
+    to_queue_item,
+)
 from api.recommendations import to_recommendation_view
 from api.repository import Repositories
 
@@ -32,7 +37,7 @@ templates = Jinja2Templates(directory=str(pathlib.Path(__file__).parent / "templ
 
 @router.get("/incidents", response_class=HTMLResponse)
 def incidents_queue_page(request: Request, repos: Repositories = Depends(get_repositories)) -> HTMLResponse:
-    incidents = [to_queue_item(i) for i in repos.incidents.list_all()]
+    incidents = [to_queue_item(i, status=current_incident_status(repos, i["incident_id"])) for i in repos.incidents.list_all()]
     return templates.TemplateResponse(request, "incidents_queue.html", {"incidents": incidents})
 
 
@@ -41,7 +46,8 @@ def incident_detail_page(request: Request, incident_id: str, repos: Repositories
     incident = repos.incidents.get(incident_id)
     if incident is None:
         raise HTTPException(status_code=404, detail=f"incidente {incident_id!r} no encontrado")
-    return templates.TemplateResponse(request, "incident_detail.html", {"incident": to_incident_detail(incident)})
+    incident_view = to_incident_detail(incident, status=current_incident_status(repos, incident_id))
+    return templates.TemplateResponse(request, "incident_detail.html", {"incident": incident_view})
 
 
 @router.get("/incidents/{incident_id}/approve", response_class=HTMLResponse)
