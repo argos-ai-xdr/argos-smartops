@@ -14,6 +14,15 @@ AuditLog.record.
 Sin endpoint SOC real todavía (ARG-022): el envío se simula (siempre
 "sent" salvo que el propio caller pida simular un fallo, útil para probar
 el ciclo failed→retry sin depender de un servicio externo que no existe).
+
+Propuesta v0.6.25.4 (14.16, Slice P0 y límites de ARG-022): "Modo:
+SOC_REAL solo con endpoint/acuerdo/prueba autorizada; en otro caso
+SOC_EMULATED con contrato idéntico." Cada registro de export lleva
+soc_mode explícito — sin él, un status="sent" no distingue una entrega
+real de una simulación, algo que un evidence pack no puede dejar
+implícito. Hoy siempre es SOC_EMULATED porque, como dice el párrafo
+anterior, no existe ningún endpoint SOC real; se vuelve un valor genuino
+en cuanto ARG-022 entregue ese cliente real.
 """
 from __future__ import annotations
 
@@ -31,6 +40,10 @@ from api.repository import Repositories
 router = APIRouter(prefix="/handover", tags=["handover"])
 
 VALID_TLP = {"RED", "AMBER", "GREEN", "CLEAR"}
+# Sin cliente SOC real todavía (ARG-022): todo export es SOC_EMULATED. El
+# día que exista un endpoint real autorizado, esto pasa a resolverse por
+# configuración/entorno, nunca a un valor fijo que pueda mentir.
+SOC_MODE = "SOC_EMULATED"
 
 
 class ExportRequest(BaseModel):
@@ -64,6 +77,7 @@ def trigger_export(
         "export_id": export_id,
         "case_id": case_id,
         "tlp": payload.tlp,
+        "soc_mode": SOC_MODE,
         "status": "failed" if payload.simulate_failure else "sent",
         "attempts": 1,
         "created_at": now,
@@ -74,7 +88,13 @@ def trigger_export(
     audit.record(
         actor=operator.subject,
         action="handover.export.create",
-        detail={"export_id": export_id, "case_id": case_id, "tlp": payload.tlp, "status": record["status"]},
+        detail={
+            "export_id": export_id,
+            "case_id": case_id,
+            "tlp": payload.tlp,
+            "soc_mode": SOC_MODE,
+            "status": record["status"],
+        },
     )
     return record
 

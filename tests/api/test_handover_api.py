@@ -82,3 +82,17 @@ def test_export_ack_and_retry_are_recorded_in_the_audit_log(approver_client, aud
     actions = [e.action for e in audit_log.all()]
     assert actions == ["handover.export.create", "handover.export.retry"]
     assert all(e.actor == "soc-1" for e in audit_log.all())
+
+
+def test_export_declares_soc_mode_explicitly(approver_client):
+    """Propuesta v0.6.25.4 (14.16): 'Modo: SOC_REAL solo con
+    endpoint/acuerdo/prueba autorizada; en otro caso SOC_EMULADO con
+    contrato idéntico.' Sin él, status='sent' no distingue una entrega
+    real de una simulación — algo que un evidence pack no puede dejar
+    implícito. Sin cliente SOC real todavía (ARG-022), siempre debe ser
+    SOC_EMULATED, nunca SOC_REAL."""
+    r = approver_client.post("/api/handover/case-mode/export", json={"tlp": "GREEN"})
+    assert r.json()["soc_mode"] == "SOC_EMULATED"
+
+    history = approver_client.get("/api/handover/case-mode/history").json()
+    assert history[0]["soc_mode"] == "SOC_EMULATED"
