@@ -78,6 +78,19 @@ antes de llegar a lógica de negocio).
   `/expire` activo — la caducidad se comprueba pasivamente en el momento
   de consumir la Approval (`argos-cyber-tools/policies/approval.ApprovalStore.validate_and_consume`:
   `if now > expires_at: raise ApprovalRejected`).
+* **Auditoría**: cada Approval creada queda en `AuditLog`
+  (`action="approval.create"`). Gap real encontrado y cerrado en esta
+  sesión: `POST /approvals`, el endpoint real, nunca llamaba a
+  `AuditLog.record` — solo `web/routes.py` auditaba, y solo cuando la
+  aprobación llegaba por el formulario web, nunca por la API directa. La
+  acción más crítica del sistema quedaba sin rastro cuando no pasaba por
+  la UI. Al cablear `audit` en `create_approval`, `web/routes.py` dejó de
+  pasarlo implícitamente (`Depends(...)` sin resolver cuando se llama
+  como función directa, no vía una request real) — corregido pasando
+  `audit=audit` explícito y quitando el registro duplicado que
+  `web/routes.py` hacía por su cuenta (`tests/e2e/test_full_flow.py::test_operator_reviews_and_approves_via_web_ui`
+  ya exigía exactamente 1 entrada de audit, no 2 — habría atrapado un
+  doble registro).
 
 `argos-cyber-tools` **revalida todo esto de forma independiente** antes
 de ejecutar nada (ADR-011) — lo de `argos-smartops` reduce aprobaciones

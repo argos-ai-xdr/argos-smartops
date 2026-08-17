@@ -19,6 +19,15 @@ interna contra su propia fórmula).
 `argos-cyber-tools` revalida todo esto de forma independiente antes de
 ejecutar nada (ADR-011): lo de aquí reduce aprobaciones inválidas por error
 humano, no es el control de seguridad final.
+
+Cada Approval creada queda en AuditLog — es la acción más crítica de todo
+el sistema (autoriza `execute` sobre un recurso real) y hasta ahora este
+endpoint, el real (`POST /approvals`), no llamaba a `AuditLog.record` en
+absoluto: solo `web/routes.py` auditaba "approval.create", y solo cuando
+la aprobación llegaba por el FORMULARIO web, nunca cuando llegaba por la
+API directamente. Mismo patrón de bug ya encontrado y corregido en
+`api/handover.py` y `api/incidents.py` — encontrado ejecutando la app y
+comprobando qué llamaba de verdad a `audit.record`, no leyendo el código.
 """
 from __future__ import annotations
 
@@ -36,6 +45,7 @@ from generated_contracts import (
     validate_payload,
 )
 
+from api.audit import AuditLog, get_audit_log
 from api.auth import Operator, require_role
 from api.incidents import get_repositories
 from api.repository import Repositories
@@ -71,6 +81,7 @@ def create_approval(
     payload: ApprovalCreate,
     operator: Operator = Depends(require_role("soc-approver")),
     repos: Repositories = Depends(get_repositories),
+    audit: AuditLog = Depends(get_audit_log),
 ) -> dict:
     if not payload.target_confirmed:
         raise HTTPException(
@@ -132,4 +143,13 @@ def create_approval(
         raise ContractValidationError("approval", errors)
 
     repos.approvals.add(full_payload)
+    audit.record(
+        actor=operator.subject,
+        action="approval.create",
+        detail={
+            "approval_id": approval_id,
+            "action_id": payload.action_id,
+            "decision": payload.decision,
+        },
+    )
     return full_payload

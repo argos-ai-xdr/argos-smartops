@@ -46,6 +46,24 @@ def test_approval_for_unknown_action_id_is_rejected(approver_client):
     assert r.status_code == 404
 
 
+def test_create_approval_is_recorded_in_the_audit_log(approver_client, audit_log):
+    """Regresión: POST /approvals (el endpoint real, vía API) nunca
+    llamaba a AuditLog.record — solo web/routes.py auditaba
+    "approval.create", y solo cuando la aprobación llegaba por el
+    formulario web, nunca por la API directamente. La accion mas critica
+    de todo el sistema (autorizar execute) quedaba sin rastro de
+    auditoria cuando no pasaba por la UI."""
+    r = approver_client.post("/api/approvals", json=_payload())
+    approval_id = r.json()["approval_id"]
+
+    entries = audit_log.all()
+    assert len(entries) == 1
+    assert entries[0].action == "approval.create"
+    assert entries[0].actor == "soc-1"
+    assert entries[0].detail["approval_id"] == approval_id
+    assert entries[0].detail["decision"] == "APPROVE"
+
+
 def test_plan_hash_is_derived_from_the_real_policy_decision_not_action_id_or_decision(approver_client):
     """Regresión del bug real: plan_hash debía depender de
     tool/target/action del PolicyDecision, no de action_id+decision — dos

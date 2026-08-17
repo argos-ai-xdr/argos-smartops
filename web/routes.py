@@ -94,10 +94,14 @@ def submit_approval(
         reason=reason,
         target_confirmed=(target_confirmed == "true"),
     )
-    approval = create_approval(payload, operator=operator, repos=repos)
-    audit.record(
-        actor=operator.subject,
-        action="approval.create",
-        detail={"approval_id": approval["approval_id"], "decision": decision, "incident_id": incident_id},
-    )
+    # audit=audit explícito: create_approval llamada como función directa
+    # (no vía una request HTTP real) no dispara la resolución de FastAPI
+    # para parámetros Depends() — sin pasarlo, su parámetro `audit`
+    # recibiría el propio objeto Depends(...) sin resolver, no un AuditLog
+    # real, y audit.record(...) dentro de create_approval reventaría con
+    # AttributeError la primera vez que se aprobara algo desde el
+    # formulario web. create_approval ya registra "approval.create" con
+    # su propio detail (approval_id/action_id/decision) — no se duplica
+    # aquí un segundo registro para el mismo evento.
+    create_approval(payload, operator=operator, repos=repos, audit=audit)
     return RedirectResponse(f"/incidents/{incident_id}", status_code=303)
