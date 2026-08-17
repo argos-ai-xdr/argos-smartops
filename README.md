@@ -26,7 +26,7 @@ FastAPI + Jinja2 (server-rendered), **no React/TypeScript**. Es una decisión ex
 * **Recomendación**: alternativas, impacto, incertidumbre, dependencias afectadas, resultado del dry-run, plan de rollback.
 * **Aprobación HITL**: aprobar, rechazar, solicitar modificación; motivo obligatorio; rol del aprobador; TTL; visualización del `plan_hash`; confirmación explícita del target.
 * **Seguimiento de acción**: estado, inicio/fin, recursos modificados, resultado de verificación, rollback, referencias de evidencia.
-* **SOC handover**: TLP, campos permitidos, exportación, ACK, reintento, historial de exportaciones.
+* **SOC handover**: TLP, campos permitidos, exportación, ACK, reintento, historial de exportaciones, cierre del caso.
 
 ## Definition of Done
 
@@ -39,4 +39,4 @@ FastAPI + Jinja2 (server-rendered), **no React/TypeScript**. Es una decisión ex
 * La auditoría es completa.
 * El handover valida contra contrato.
 
-Ver `docs/development.md`. Paquete operador/SOC (ARG-028): `docs/operator-package.md`.
+Ver `docs/development.md`. Paquetes operador/SOC (ARG-028): `docs/operator-package.md` (HITL/SOAR), `docs/soc-handover-package.md` (SOC handover).

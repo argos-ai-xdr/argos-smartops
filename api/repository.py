@@ -42,6 +42,7 @@ class Repositories:
     action_results: InMemoryRepository
     evidence_manifests: InMemoryRepository
     handovers: InMemoryRepository
+    case_closures: InMemoryRepository
 
 
 def _load_fixture(contracts_path: pathlib.Path, contract: str, filename: str) -> dict:
@@ -77,6 +78,7 @@ def build_seeded_repositories(contracts_path: pathlib.Path) -> Repositories:
         action_results=action_results,
         evidence_manifests=evidence_manifests,
         handovers=InMemoryRepository(key_field="export_id"),  # vacío: los exports los crea api/handover
+        case_closures=InMemoryRepository(key_field="case_id"),  # vacío: el cierre lo crea api/handover
     )
 
 
@@ -90,4 +92,5 @@ def build_empty_repositories() -> Repositories:
         action_results=InMemoryRepository(key_field="action_id"),
         evidence_manifests=InMemoryRepository(key_field="artifact_id"),
         handovers=InMemoryRepository(key_field="export_id"),
+        case_closures=InMemoryRepository(key_field="case_id"),
     )

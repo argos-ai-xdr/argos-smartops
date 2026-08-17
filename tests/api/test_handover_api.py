@@ -84,6 +84,81 @@ def test_export_ack_and_retry_are_recorded_in_the_audit_log(approver_client, aud
     assert all(e.actor == "soc-1" for e in audit_log.all())
 
 
+def test_close_case_requires_the_most_recent_export_to_be_acked(approver_client):
+    r1 = approver_client.post("/api/handover/case-close/export", json={"tlp": "GREEN"})
+    export_id = r1.json()["export_id"]
+
+    r_early = approver_client.post("/api/handover/case-close/close")
+    assert r_early.status_code == 409  # todavía 'sent', no 'acked'
+
+    approver_client.post(f"/api/handover/exports/{export_id}/ack")
+    r_close = approver_client.post("/api/handover/case-close/close")
+    assert r_close.status_code == 200
+    assert r_close.json()["last_export_id"] == export_id
+    assert r_close.json()["closed_by"] == "soc-1"
+
+
+def test_close_case_cannot_be_closed_twice(approver_client):
+    r1 = approver_client.post("/api/handover/case-double-close/export", json={"tlp": "GREEN"})
+    export_id = r1.json()["export_id"]
+    approver_client.post(f"/api/handover/exports/{export_id}/ack")
+    approver_client.post("/api/handover/case-double-close/close")
+
+    r2 = approver_client.post("/api/handover/case-double-close/close")
+    assert r2.status_code == 409
+
+
+def test_close_case_with_no_exports_is_404(approver_client):
+    r = approver_client.post("/api/handover/case-never-exported/close")
+    assert r.status_code == 404
+
+
+def test_close_case_uses_the_most_recent_export_not_an_arbitrary_one(approver_client):
+    """Regresión conceptual: si un caso tiene dos exports (p. ej. uno
+    viejo ya acked y uno nuevo reenviado tras un cambio), cerrar debe
+    exigir que el MÁS RECIENTE esté acked — un export viejo acked no
+    debe permitir cerrar mientras el más reciente sigue sin confirmar."""
+    r1 = approver_client.post("/api/handover/case-two-exports/export", json={"tlp": "GREEN"})
+    export_id_1 = r1.json()["export_id"]
+    approver_client.post(f"/api/handover/exports/{export_id_1}/ack")
+
+    r2 = approver_client.post("/api/handover/case-two-exports/export", json={"tlp": "GREEN"})
+    # el segundo export está 'sent', no 'acked' todavía
+
+    r_close = approver_client.post("/api/handover/case-two-exports/close")
+    assert r_close.status_code == 409
+    assert r2.json()["export_id"] in r_close.json()["detail"]
+
+
+def test_close_case_is_recorded_in_the_audit_log(approver_client, audit_log):
+    r1 = approver_client.post("/api/handover/case-audit-close/export", json={"tlp": "GREEN"})
+    export_id = r1.json()["export_id"]
+    approver_client.post(f"/api/handover/exports/{export_id}/ack")
+    approver_client.post("/api/handover/case-audit-close/close")
+
+    actions = [e.action for e in audit_log.all()]
+    assert actions[-1] == "handover.case.close"
+
+
+def test_get_case_closure_returns_404_before_closing_and_the_record_after(approver_client):
+    r1 = approver_client.post("/api/handover/case-closure-lookup/export", json={"tlp": "GREEN"})
+    export_id = r1.json()["export_id"]
+
+    assert approver_client.get("/api/handover/case-closure-lookup/closure").status_code == 404
+
+    approver_client.post(f"/api/handover/exports/{export_id}/ack")
+    approver_client.post("/api/handover/case-closure-lookup/close")
+
+    r = approver_client.get("/api/handover/case-closure-lookup/closure")
+    assert r.status_code == 200
+    assert r.json()["case_id"] == "case-closure-lookup"
+
+
+def test_close_case_without_authentication_does_not_silently_succeed(unauthenticated_client):
+    r = unauthenticated_client.post("/api/handover/some-case/close")
+    assert r.status_code >= 400
+
+
 def test_export_declares_soc_mode_explicitly(approver_client):
     """Propuesta v0.6.25.4 (14.16): 'Modo: SOC_REAL solo con
     endpoint/acuerdo/prueba autorizada; en otro caso SOC_EMULADO con

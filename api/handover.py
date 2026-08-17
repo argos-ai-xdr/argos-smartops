@@ -1,7 +1,8 @@
 """Ciclo de vida del envío del SOC handover (P0): TLP, ACK, reintento,
-historial de exportaciones. No reconstruye la redacción por TLP — eso es
-`argos-core/services/soc_adapter`; aquí se gestiona SOLO el estado del
-envío (pending → sent → acked, o failed → retry).
+historial de exportaciones, cierre del caso. No reconstruye la redacción
+por TLP — eso es `argos-core/services/soc_adapter`; aquí se gestiona SOLO
+el estado del envío (pending → sent → acked, o failed → retry) y el
+cierre del caso una vez que el SOC confirmó recepción.
 
 Cada transición exige un operador autenticado y queda en AuditLog — un
 handover expone contenido con clasificación TLP a un tercero (el SOC), así
@@ -147,3 +148,55 @@ def retry_export(
 @router.get("/{case_id}/history")
 def get_export_history(case_id: str, repos: Repositories = Depends(get_repositories)) -> list[dict]:
     return repos.handovers.list_where(case_id=case_id)
+
+
+@router.post("/{case_id}/close")
+def close_case(
+    case_id: str,
+    operator: Operator = Depends(get_current_operator),
+    repos: Repositories = Depends(get_repositories),
+    audit: AuditLog = Depends(get_audit_log),
+) -> dict:
+    """Cierre del caso (ARG-028, paquete "SOC handover": "...escalado y
+    cierre"). Exige que el export MÁS RECIENTE del caso esté 'acked' — no
+    tiene sentido cerrar un caso cuyo último envío nunca fue confirmado
+    por el SOC, o que sigue en 'failed'. No se puede cerrar dos veces."""
+    exports = repos.handovers.list_where(case_id=case_id)
+    if not exports:
+        raise HTTPException(status_code=404, detail=f"case {case_id!r} no tiene ningún export de handover")
+    if repos.case_closures.get(case_id) is not None:
+        raise HTTPException(status_code=409, detail=f"case {case_id!r} ya está cerrado")
+
+    # El último de la lista, no max(..., key=created_at): InMemoryRepository
+    # preserva orden de inserción (dict de Python) y dos exports creados en
+    # sucesión rápida podrían compartir el mismo timestamp — el orden de
+    # inserción es la señal fiable de "más reciente", la resolución del
+    # reloj no lo es.
+    latest = exports[-1]
+    if latest["status"] != "acked":
+        raise HTTPException(
+            status_code=409,
+            detail=f"no se puede cerrar: el export más reciente ({latest['export_id']}) está en estado '{latest['status']}', no 'acked'",
+        )
+
+    record = {
+        "case_id": case_id,
+        "closed_by": operator.subject,
+        "closed_at": _now_iso(),
+        "last_export_id": latest["export_id"],
+    }
+    repos.case_closures.add(record)
+    audit.record(
+        actor=operator.subject,
+        action="handover.case.close",
+        detail={"case_id": case_id, "last_export_id": latest["export_id"]},
+    )
+    return record
+
+
+@router.get("/{case_id}/closure")
+def get_case_closure(case_id: str, repos: Repositories = Depends(get_repositories)) -> dict:
+    record = repos.case_closures.get(case_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"case {case_id!r} no está cerrado")
+    return record

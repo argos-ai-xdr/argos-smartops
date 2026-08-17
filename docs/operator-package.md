@@ -131,19 +131,17 @@ real, no solo documental:
   como "no apruebes lo que tú mismo vas a ejecutar", dos reglas
   distintas de la matriz.
 
-## 7. Vista operativa / evidence links / handover (el resto del artefacto de este repo)
+## 7. Vista operativa / evidence links
 
 * **Vista operativa mínima**: `api/incidents.py`, `api/approvals.py`
   (listado/consulta) — probado en `tests/api/test_incidents_api.py`,
   `tests/api/test_approvals_api.py`.
-* **Handover consumer/emulator**: `api/handover.py` — ciclo
-  export→ack/retry, `SOC_MODE=SOC_EMULATED` explícito (sin endpoint SOC
-  real todavía, ARG-022). Ver su propio docstring para el detalle
-  completo.
 * **Evidence links**: cada `Approval`/`ActionResult` referenciado por
   `run_id`/`action_id` es trazable hasta su `EvidenceManifest` vía
   `argos-validation/harness/evidence/manifest.py` y el panel operativo
   (`argos-validation/harness/reporters/evidence_panel.py`, ARG-026).
+* **SOC handover**: paquete propio de ARG-028, ver
+  [`soc-handover-package.md`](soc-handover-package.md).
 
 ## Break-glass: fuera de alcance de este MVP, no un gap silenciado
 
